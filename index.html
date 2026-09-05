@@ -389,4 +389,194 @@
       item.addEventListener('dragend', handleDragEnd);
 
       container.appendChild(item);
+    });
+  }
+
+  function handleItemClick(item) {
+    if (!selectedItem) {
+      selectedItem = item;
+      item.classList.add('selected');
+    } else if (selectedItem === item) {
+      selectedItem.classList.remove('selected');
+      selectedItem = null;
+    } else {
+      const tempText = selectedItem.innerText;
+      selectedItem.innerText = item.innerText;
+      item.innerText = tempText;
+
+      selectedItem.classList.remove('selected');
+      selectedItem = null;
     }
+  }
+
+  function handleDragStart(e) {
+    draggedItem = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    if (draggedItem && draggedItem !== this) {
+      const container = document.getElementById('sortable-list');
+      const items = Array.from(container.children);
+      const draggedIdx = items.indexOf(draggedItem);
+      const targetIdx = items.indexOf(this);
+
+      if (draggedIdx < targetIdx) {
+        this.after(draggedItem);
+      } else {
+        this.before(draggedItem);
+      }
+    }
+  }
+
+  function handleDragEnd() {
+    this.classList.remove('dragging');
+    draggedItem = null;
+  }
+
+  function checkOrdenacao() {
+    const container = document.getElementById('sortable-list');
+    const items = Array.from(container.children);
+    let correctCount = 0;
+
+    items.forEach((item, idx) => {
+      item.classList.remove('selected', 'correct', 'incorrect');
+      if (item.innerText === verseChunks[idx]) {
+        item.classList.add('correct');
+        correctCount++;
+      } else {
+        item.classList.add('incorrect');
+      }
+    });
+
+    const res = document.getElementById('res-ordenar');
+    if (correctCount === verseChunks.length) {
+      res.style.color = '#2e7d32';
+      res.innerHTML = 'Parabéns! O versículo está na ordem perfeita! 🎉';
+    } else {
+      res.style.color = '#c62828';
+      res.innerHTML = `Você acertou <strong>${correctCount}</strong> de <strong>${verseChunks.length}</strong> trechos.` +
+        `<div class="correct-verse-box">` +
+        `<strong>📖 Versículo Correto:</strong><br>` +
+        `"${verseText}"` +
+        `</div>`;
+    }
+  }
+
+  function novaRodada(mode) {
+    if (mode === 'lacunas') {
+      renderVerseWithBlanks('box-lacunas', 'l-in', 5);
+      document.getElementById('res-lacunas').innerHTML = '';
+    } else if (mode === 'ordenar') {
+      renderSortableList();
+    } else if (mode === 'tempo') {
+      renderVerseWithBlanks('box-tempo', 't-in', 5);
+      document.querySelectorAll('.t-in').forEach(i => i.disabled = true);
+      document.getElementById('res-tempo').innerHTML = '';
+    }
+  }
+
+  function switchTab(mode) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.mode-container').forEach(c => c.classList.remove('active'));
+    clearInterval(timerInterval);
+
+    if (mode === 'lacunas') {
+      document.querySelectorAll('.tab-btn')[0].classList.add('active');
+      document.getElementById('mode-lacunas').classList.add('active');
+      novaRodada('lacunas');
+    } else if (mode === 'ordenar') {
+      document.querySelectorAll('.tab-btn')[1].classList.add('active');
+      document.getElementById('mode-ordenar').classList.add('active');
+      novaRodada('ordenar');
+    } else if (mode === 'letras') {
+      document.querySelectorAll('.tab-btn')[2].classList.add('active');
+      document.getElementById('mode-letras').classList.add('active');
+    } else if (mode === 'tempo') {
+      document.querySelectorAll('.tab-btn')[3].classList.add('active');
+      document.getElementById('mode-tempo').classList.add('active');
+      resetTimer();
+    }
+  }
+
+  function checkLacunas(containerId) {
+    const inputs = document.querySelectorAll(`#${containerId} input`);
+    let correct = 0;
+    inputs.forEach(input => {
+      const val = input.value.trim().toLowerCase();
+      const ans = input.dataset.ans.toLowerCase();
+      if (val === ans) {
+        input.className = input.className.split(' ')[0] + ' correct';
+        correct++;
+      } else {
+        input.className = input.className.split(' ')[0] + ' incorrect';
+      }
+    });
+
+    const resId = containerId === 'mode-lacunas' ? 'res-lacunas' : 'res-tempo';
+    const res = document.getElementById(resId);
+    if (correct === inputs.length) {
+      res.style.color = '#2e7d32';
+      res.innerHTML = 'Parabéns! Você acertou todas as palavras! 🎉';
+      return true;
+    } else {
+      res.style.color = '#c62828';
+      res.innerHTML = `Você acertou <strong>${correct}</strong> de <strong>${inputs.length}</strong>.` +
+        `<div class="correct-verse-box">` +
+        `<strong>📖 Versículo Correto:</strong><br>` +
+        `"${verseText}"` +
+        `</div>`;
+      return false;
+    }
+  }
+
+  function toggleReveal() {
+    const verse = document.getElementById('full-verse');
+    verse.style.display = verse.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function resetTimer() {
+    clearInterval(timerInterval);
+    timeLeft = 30;
+    document.getElementById('timer-display').innerText = '⏱️ 30s';
+    novaRodada('tempo');
+    const btn = document.getElementById('btn-timer');
+    btn.innerText = 'Iniciar Desafio';
+    btn.onclick = startTimerChallenge;
+  }
+
+  function startTimerChallenge() {
+    document.querySelectorAll('.t-in').forEach(i => i.disabled = false);
+    const firstInput = document.querySelector('.t-in');
+    if (firstInput) firstInput.focus();
+    
+    const btn = document.getElementById('btn-timer');
+    btn.innerText = 'Enviar Respostas';
+    btn.onclick = () => {
+      clearInterval(timerInterval);
+      checkLacunas('mode-tempo');
+    };
+
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      document.getElementById('timer-display').innerText = '⏱️ ' + timeLeft + 's';
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        checkLacunas('mode-tempo');
+      }
+    }, 1000);
+  }
+
+  // Inicialização
+  novaRodada('lacunas');
+</script>
+
+</body>
+</html>
