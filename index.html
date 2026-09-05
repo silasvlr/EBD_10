@@ -22,7 +22,7 @@
       padding: 24px;
       border-radius: 20px;
       box-shadow: 0 10px 25px rgba(90, 64, 45, 0.12);
-      max-width: 500px;
+      max-width: 520px;
       width: 100%;
       border: 1px solid #e8e0d5;
     }
@@ -43,7 +43,7 @@
     }
     .nav-tabs {
       display: flex;
-      gap: 6px;
+      gap: 4px;
       margin-bottom: 20px;
       background: #eee8dd;
       padding: 5px;
@@ -51,8 +51,8 @@
     }
     .tab-btn {
       flex: 1;
-      padding: 10px 4px;
-      font-size: 0.85rem;
+      padding: 10px 2px;
+      font-size: 0.8rem;
       border: none;
       background: transparent;
       color: #5a402d;
@@ -60,6 +60,7 @@
       cursor: pointer;
       font-weight: 600;
       transition: all 0.2s ease;
+      text-align: center;
     }
     .tab-btn.active {
       background: #5a402d;
@@ -148,11 +149,82 @@
       letter-spacing: 0.5px;
       color: #4a3b32;
     }
+    /* ESTILOS DA ABA ORDENAR (DRAG & DROP) */
+    .sortable-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .drag-item {
+      background: #faf7f2;
+      border: 1px solid #ebd3bd;
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: grab;
+      font-size: 0.95rem;
+      color: #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+      transition: background 0.2s, border-color 0.2s, transform 0.1s;
+    }
+    .drag-item::after {
+      content: "⋮⋮";
+      color: #b5a290;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+    .drag-item:active {
+      cursor: grabbing;
+    }
+    .drag-item.dragging {
+      opacity: 0.5;
+      background: #e8e0d5;
+    }
+    .drag-item.selected {
+      border: 2px solid #5a402d;
+      background: #f0e6d2;
+    }
+    .drag-item.correct {
+      background-color: #e8f5e9;
+      border-color: #2e7d32;
+      color: #2e7d32;
+      font-weight: bold;
+    }
+    .drag-item.correct::after {
+      content: "✓";
+      color: #2e7d32;
+    }
+    .drag-item.incorrect {
+      background-color: #ffebee;
+      border-color: #c62828;
+      color: #c62828;
+    }
+    .drag-item.incorrect::after {
+      content: "✕";
+      color: #c62828;
+    }
     .result {
       text-align: center;
       font-weight: bold;
       margin-top: 15px;
       font-size: 1rem;
+    }
+    .correct-verse-box {
+      background: #fff3e0;
+      border: 1px solid #ffe0b2;
+      color: #d84315;
+      padding: 14px;
+      border-radius: 10px;
+      font-weight: normal;
+      text-align: left;
+      font-size: 0.95rem;
+      margin-top: 12px;
+      line-height: 1.6;
+    }
+    .correct-verse-box strong {
+      color: #bf360c;
     }
     .reference {
       text-align: right;
@@ -177,6 +249,7 @@
 
   <div class="nav-tabs">
     <button class="tab-btn active" onclick="switchTab('lacunas')">Lacunas</button>
+    <button class="tab-btn" onclick="switchTab('ordenar')">Ordenar</button>
     <button class="tab-btn" onclick="switchTab('letras')">1ªs Letras</button>
     <button class="tab-btn" onclick="switchTab('tempo')">Desafio 30s</button>
   </div>
@@ -192,7 +265,18 @@
     <div class="result" id="res-lacunas"></div>
   </div>
 
-  <!-- MODO 2: PRIMEIRAS LETRAS -->
+  <!-- MODO 2: ORDENAR TRECHOS (DRAG & DROP) -->
+  <div id="mode-ordenar" class="mode-container">
+    <div class="instructions">Arraste os trechos (ou toque em dois para trocar) para ordenar:</div>
+    <div id="sortable-list" class="sortable-container"></div>
+    <div class="btn-group">
+      <button class="action-btn secondary" onclick="novaRodada('ordenar')">🔄 Misturar</button>
+      <button class="action-btn" onclick="checkOrdenacao()">Conferir</button>
+    </div>
+    <div class="result" id="res-ordenar"></div>
+  </div>
+
+  <!-- MODO 3: PRIMEIRAS LETRAS -->
   <div id="mode-letras" class="mode-container">
     <div class="instructions">Recite o versículo usando apenas as letras iniciais:</div>
     <div class="letters-box" id="prompt-letras">
@@ -204,7 +288,7 @@
     </div>
   </div>
 
-  <!-- MODO 3: TEMPORIZADOR COM LACUNAS ALEATÓRIAS -->
+  <!-- MODO 4: TEMPORIZADOR -->
   <div id="mode-tempo" class="mode-container">
     <div class="instructions">Preencha as palavras sorteadas antes do tempo acabar!</div>
     <div class="timer" id="timer-display">⏱️ 30s</div>
@@ -219,8 +303,21 @@
 <script>
   const verseText = "Guardai-vos de exercer a vossa justiça diante dos homens, com o fim de serdes vistos por eles; doutra sorte não tereis galardão junto de vosso Pai celeste.";
   
+  const verseChunks = [
+    "Guardai-vos de exercer",
+    "a vossa justiça",
+    "diante dos homens,",
+    "com o fim de",
+    "serdes vistos por eles;",
+    "doutra sorte",
+    "não tereis galardão",
+    "junto de vosso Pai celeste."
+  ];
+
   let timerInterval = null;
   let timeLeft = 30;
+  let selectedItem = null;
+  let draggedItem = null;
 
   function parseVerse(text) {
     const words = text.split(" ");
@@ -241,7 +338,6 @@
     const container = document.getElementById(containerId);
     const tokens = parseVerse(verseText);
     
-    // Filtra palavras com mais de 2 letras para tornarem-se lacunas
     const eligibleIndices = [];
     tokens.forEach((t, idx) => {
       if (t.word.length >= 3) {
@@ -249,7 +345,6 @@
       }
     });
 
-    // Sorteia índices
     const shuffled = eligibleIndices.sort(() => 0.5 - Math.random());
     const chosenIndices = new Set(shuffled.slice(0, numBlanks));
 
@@ -266,104 +361,32 @@
     container.innerHTML = html.trim();
   }
 
-  function novaRodada(mode) {
-    if (mode === 'lacunas') {
-      renderVerseWithBlanks('box-lacunas', 'l-in', 5);
-      document.getElementById('res-lacunas').innerText = '';
-    } else if (mode === 'tempo') {
-      renderVerseWithBlanks('box-tempo', 't-in', 5);
-      document.querySelectorAll('.t-in').forEach(i => i.disabled = true);
-      document.getElementById('res-tempo').innerText = '';
+  /* --- ABA ORDENAR (DRAG & DROP / TOQUE) --- */
+  function renderSortableList() {
+    const container = document.getElementById('sortable-list');
+    container.innerHTML = '';
+    selectedItem = null;
+    document.getElementById('res-ordenar').innerHTML = '';
+
+    let shuffled = [...verseChunks];
+    do {
+      shuffled.sort(() => 0.5 - Math.random());
+    } while (shuffled.join(' ') === verseChunks.join(' '));
+
+    shuffled.forEach((text) => {
+      const item = document.createElement('div');
+      item.className = 'drag-item';
+      item.draggable = true;
+      item.innerText = text;
+
+      // Suporte a toque/clique para trocar posições
+      item.addEventListener('click', () => handleItemClick(item));
+
+      // Eventos Drag and Drop (Mouse/Desktop)
+      item.addEventListener('dragstart', handleDragStart);
+      item.addEventListener('dragover', handleDragOver);
+      item.addEventListener('drop', handleDrop);
+      item.addEventListener('dragend', handleDragEnd);
+
+      container.appendChild(item);
     }
-  }
-
-  function switchTab(mode) {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.mode-container').forEach(c => c.classList.remove('active'));
-    clearInterval(timerInterval);
-
-    if (mode === 'lacunas') {
-      document.querySelectorAll('.tab-btn')[0].classList.add('active');
-      document.getElementById('mode-lacunas').classList.add('active');
-      novaRodada('lacunas');
-    } else if (mode === 'letras') {
-      document.querySelectorAll('.tab-btn')[1].classList.add('active');
-      document.getElementById('mode-letras').classList.add('active');
-    } else if (mode === 'tempo') {
-      document.querySelectorAll('.tab-btn')[2].classList.add('active');
-      document.getElementById('mode-tempo').classList.add('active');
-      resetTimer();
-    }
-  }
-
-  function checkLacunas(containerId) {
-    const inputs = document.querySelectorAll(`#${containerId} input`);
-    let correct = 0;
-    inputs.forEach(input => {
-      const val = input.value.trim().toLowerCase();
-      const ans = input.dataset.ans.toLowerCase();
-      if (val === ans) {
-        input.className = input.className.split(' ')[0] + ' correct';
-        correct++;
-      } else {
-        input.className = input.className.split(' ')[0] + ' incorrect';
-      }
-    });
-
-    const resId = containerId === 'mode-lacunas' ? 'res-lacunas' : 'res-tempo';
-    const res = document.getElementById(resId);
-    if (correct === inputs.length) {
-      res.style.color = '#2e7d32';
-      res.innerText = 'Parabéns! Você acertou todas as palavras! 🎉';
-      return true;
-    } else {
-      res.style.color = '#c62828';
-      res.innerText = `Você acertou ${correct} de ${inputs.length}. Tente novamente!`;
-      return false;
-    }
-  }
-
-  function toggleReveal() {
-    const verse = document.getElementById('full-verse');
-    verse.style.display = verse.style.display === 'none' ? 'block' : 'none';
-  }
-
-  function resetTimer() {
-    clearInterval(timerInterval);
-    timeLeft = 30;
-    document.getElementById('timer-display').innerText = '⏱️ 30s';
-    novaRodada('tempo');
-    const btn = document.getElementById('btn-timer');
-    btn.innerText = 'Iniciar Desafio';
-    btn.onclick = startTimerChallenge;
-  }
-
-  function startTimerChallenge() {
-    document.querySelectorAll('.t-in').forEach(i => i.disabled = false);
-    const firstInput = document.querySelector('.t-in');
-    if (firstInput) firstInput.focus();
-    
-    const btn = document.getElementById('btn-timer');
-    btn.innerText = 'Enviar Respostas';
-    btn.onclick = () => {
-      clearInterval(timerInterval);
-      checkLacunas('mode-tempo');
-    };
-
-    timerInterval = setInterval(() => {
-      timeLeft--;
-      document.getElementById('timer-display').innerText = '⏱️ ' + timeLeft + 's';
-      if (timeLeft <= 0) {
-        clearInterval(timerInterval);
-        checkLacunas('mode-tempo');
-        document.getElementById('res-tempo').innerText += ' (Tempo esgotado!)';
-      }
-    }, 1000);
-  }
-
-  // Inicialização
-  novaRodada('lacunas');
-</script>
-
-</body>
-</html>
