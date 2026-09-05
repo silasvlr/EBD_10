@@ -22,7 +22,7 @@
       padding: 24px;
       border-radius: 20px;
       box-shadow: 0 10px 25px rgba(90, 64, 45, 0.12);
-      max-width: 480px;
+      max-width: 500px;
       width: 100%;
       border: 1px solid #e8e0d5;
     }
@@ -74,7 +74,7 @@
     }
     .verse-box {
       font-size: 1.1rem;
-      line-height: 2.2;
+      line-height: 2.3;
       color: #2c2520;
       background-color: #faf7f2;
       padding: 18px;
@@ -87,7 +87,6 @@
       background: #ffffff;
       padding: 4px 6px;
       font-size: 0.95rem;
-      width: 90px;
       text-align: center;
       outline: none;
       border-radius: 4px;
@@ -105,23 +104,29 @@
       background-color: #ffebee;
       color: #c62828;
     }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
     .action-btn {
-      width: 100%;
+      flex: 1;
       background-color: #5a402d;
       color: white;
       border: none;
       padding: 14px;
-      font-size: 1rem;
+      font-size: 0.95rem;
       border-radius: 10px;
-      margin-top: 20px;
       cursor: pointer;
       font-weight: bold;
       box-shadow: 0 4px 10px rgba(90, 64, 45, 0.2);
-      transition: background 0.2s;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .action-btn.secondary {
+      background-color: #8c735d;
     }
     .action-btn:active {
       transform: scale(0.98);
-      background-color: #432e20;
     }
     .timer {
       text-align: center;
@@ -176,13 +181,14 @@
     <button class="tab-btn" onclick="switchTab('tempo')">Desafio 30s</button>
   </div>
 
-  <!-- MODO 1: LACUNAS -->
+  <!-- MODO 1: LACUNAS ALEATÓRIAS -->
   <div id="mode-lacunas" class="mode-container active">
-    <div class="instructions">Preencha as lacunas com as palavras corretas:</div>
-    <div class="verse-box">
-      Guardai-vos de <input type="text" class="l-in" data-ans="exercer"> a vossa <input type="text" class="l-in" data-ans="justiça"> diante dos homens, com o fim de serdes <input type="text" class="l-in" data-ans="vistos"> por eles; doutra sorte não tereis <input type="text" class="l-in" data-ans="galardão"> junto de vosso <input type="text" class="l-in" data-ans="Pai"> celeste.
+    <div class="instructions">A cada rodada, 5 palavras diferentes serão omitidas:</div>
+    <div class="verse-box" id="box-lacunas"></div>
+    <div class="btn-group">
+      <button class="action-btn secondary" onclick="novaRodada('lacunas')">🔄 Nova Rodada</button>
+      <button class="action-btn" onclick="checkLacunas('mode-lacunas')">Conferir</button>
     </div>
-    <button class="action-btn" onclick="checkLacunas('mode-lacunas')">Conferir Respostas</button>
     <div class="result" id="res-lacunas"></div>
   </div>
 
@@ -192,20 +198,18 @@
     <div class="letters-box" id="prompt-letras">
       G________-v__ d_ e______ a v____ j______ d_____ d__ h_____, c__ o f__ d_ s_____ v_____ p__ e___; d_____ s____ n__ t_____ g_______ j____ d_ v____ P__ c______.
     </div>
-    <button class="action-btn" onclick="toggleReveal()">Revelar Versículo Completo</button>
+    <button class="action-btn" style="width:100%; margin-top:15px;" onclick="toggleReveal()">Revelar Versículo Completo</button>
     <div class="result" id="full-verse" style="display:none; color:#2e7d32; margin-top:15px; font-size:0.95rem; background:#e8f5e9; padding:12px; border-radius:8px;">
       "Guardai-vos de exercer a vossa justiça diante dos homens, com o fim de serdes vistos por eles; doutra sorte não tereis galardão junto de vosso Pai celeste."
     </div>
   </div>
 
-  <!-- MODO 3: TEMPORIZADOR -->
+  <!-- MODO 3: TEMPORIZADOR COM LACUNAS ALEATÓRIAS -->
   <div id="mode-tempo" class="mode-container">
-    <div class="instructions">Preencha tudo antes que o tempo acabe!</div>
+    <div class="instructions">Preencha as palavras sorteadas antes do tempo acabar!</div>
     <div class="timer" id="timer-display">⏱️ 30s</div>
-    <div class="verse-box">
-      Guardai-vos de <input type="text" class="t-in" data-ans="exercer"> a vossa <input type="text" class="t-in" data-ans="justiça"> diante dos homens, com o fim de serdes <input type="text" class="t-in" data-ans="vistos"> por eles; doutra sorte não tereis <input type="text" class="t-in" data-ans="galardão"> junto de vosso <input type="text" class="t-in" data-ans="Pai"> celeste.
-    </div>
-    <button class="action-btn" id="btn-timer" onclick="startTimerChallenge()">Iniciar Desafio</button>
+    <div class="verse-box" id="box-tempo"></div>
+    <button class="action-btn" id="btn-timer" style="width:100%; margin-top:15px;" onclick="startTimerChallenge()">Iniciar Desafio</button>
     <div class="result" id="res-tempo"></div>
   </div>
 
@@ -213,8 +217,65 @@
 </div>
 
 <script>
+  const verseText = "Guardai-vos de exercer a vossa justiça diante dos homens, com o fim de serdes vistos por eles; doutra sorte não tereis galardão junto de vosso Pai celeste.";
+  
   let timerInterval = null;
   let timeLeft = 30;
+
+  function parseVerse(text) {
+    const words = text.split(" ");
+    return words.map(raw => {
+      const match = raw.match(/^([^\wáàâãéèêíóôõúçÁÀÂÃÉÈÊÍÓÔÕÚÇ\-]+)?([\wáàâãéèêíóôõúçÁÀÂÃÉÈÊÍÓÔÕÚÇ\-]+)([^\wáàâãéèêíóôõúçÁÀÂÃÉÈÊÍÓÔÕÚÇ\-]+)?$/i);
+      if (match) {
+        return {
+          prefix: match[1] || "",
+          word: match[2],
+          suffix: match[3] || ""
+        };
+      }
+      return { prefix: "", word: raw, suffix: "" };
+    });
+  }
+
+  function renderVerseWithBlanks(containerId, inputClass, numBlanks = 5) {
+    const container = document.getElementById(containerId);
+    const tokens = parseVerse(verseText);
+    
+    // Filtra palavras com mais de 2 letras para tornarem-se lacunas
+    const eligibleIndices = [];
+    tokens.forEach((t, idx) => {
+      if (t.word.length >= 3) {
+        eligibleIndices.push(idx);
+      }
+    });
+
+    // Sorteia índices
+    const shuffled = eligibleIndices.sort(() => 0.5 - Math.random());
+    const chosenIndices = new Set(shuffled.slice(0, numBlanks));
+
+    let html = "";
+    tokens.forEach((t, idx) => {
+      if (chosenIndices.has(idx)) {
+        const width = Math.max(70, t.word.length * 11);
+        html += `${t.prefix}<input type="text" class="${inputClass}" data-ans="${t.word}" style="width: ${width}px;" placeholder="???">${t.suffix} `;
+      } else {
+        html += `${t.prefix}${t.word}${t.suffix} `;
+      }
+    });
+
+    container.innerHTML = html.trim();
+  }
+
+  function novaRodada(mode) {
+    if (mode === 'lacunas') {
+      renderVerseWithBlanks('box-lacunas', 'l-in', 5);
+      document.getElementById('res-lacunas').innerText = '';
+    } else if (mode === 'tempo') {
+      renderVerseWithBlanks('box-tempo', 't-in', 5);
+      document.querySelectorAll('.t-in').forEach(i => i.disabled = true);
+      document.getElementById('res-tempo').innerText = '';
+    }
+  }
 
   function switchTab(mode) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -224,6 +285,7 @@
     if (mode === 'lacunas') {
       document.querySelectorAll('.tab-btn')[0].classList.add('active');
       document.getElementById('mode-lacunas').classList.add('active');
+      novaRodada('lacunas');
     } else if (mode === 'letras') {
       document.querySelectorAll('.tab-btn')[1].classList.add('active');
       document.getElementById('mode-letras').classList.add('active');
@@ -238,7 +300,9 @@
     const inputs = document.querySelectorAll(`#${containerId} input`);
     let correct = 0;
     inputs.forEach(input => {
-      if (input.value.trim().toLowerCase() === input.dataset.ans.toLowerCase()) {
+      const val = input.value.trim().toLowerCase();
+      const ans = input.dataset.ans.toLowerCase();
+      if (val === ans) {
         input.className = input.className.split(' ')[0] + ' correct';
         correct++;
       } else {
@@ -268,20 +332,17 @@
     clearInterval(timerInterval);
     timeLeft = 30;
     document.getElementById('timer-display').innerText = '⏱️ 30s';
-    document.getElementById('res-tempo').innerText = '';
+    novaRodada('tempo');
     const btn = document.getElementById('btn-timer');
     btn.innerText = 'Iniciar Desafio';
     btn.onclick = startTimerChallenge;
-    document.querySelectorAll('.t-in').forEach(i => {
-      i.value = '';
-      i.className = 't-in';
-      i.disabled = true;
-    });
   }
 
   function startTimerChallenge() {
     document.querySelectorAll('.t-in').forEach(i => i.disabled = false);
-    document.querySelector('.t-in').focus();
+    const firstInput = document.querySelector('.t-in');
+    if (firstInput) firstInput.focus();
+    
     const btn = document.getElementById('btn-timer');
     btn.innerText = 'Enviar Respostas';
     btn.onclick = () => {
@@ -300,7 +361,8 @@
     }, 1000);
   }
 
-  document.querySelectorAll('.t-in').forEach(i => i.disabled = true);
+  // Inicialização
+  novaRodada('lacunas');
 </script>
 
 </body>
